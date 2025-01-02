@@ -37,29 +37,24 @@ __all__ = ["src_file", "SRC_FILE", "FileInfo", "src", "frames_to_samples", "f2s"
 
 class src_file:
     file: Path | list[Path]
-    source_filter: SourceFilter = SourceFilter.BESTSOURCE
-    preview_filter: SourceFilter = SourceFilter.FFMS2
+    source_filter: SourceFilter | Callable[[str], vs.VideoNode] = SourceFilter.BESTSOURCE
+    preview_filter: SourceFilter | Callable[[str], vs.VideoNode] = SourceFilter.FFMS2
     trim: Trim = None
-    idx: Callable[[str], vs.VideoNode] | None = None
-    idx_args = {}
 
     def __init__(
         self,
         file: PathLike | GlobSearch | Sequence[PathLike],
-        source_filter: SourceFilter = SourceFilter.BESTSOURCE,
-        preview_filter: SourceFilter = SourceFilter.FFMS2,
+        source_filter: SourceFilter | Callable[[str], vs.VideoNode] = SourceFilter.BESTSOURCE,
+        preview_filter: SourceFilter | Callable[[str], vs.VideoNode] = SourceFilter.FFMS2,
         trim: Trim = None,
-        idx: Callable[[str], vs.VideoNode] | None = None,
-        **kwargs,
     ):
         """
         Custom `FileInfo` kind of thing for convenience
 
         :param file:            Either a string based filepath or a Path object
-        :param source_filter:   Source filter to use for regular indexing
-        :param preview_filter:  Source filter to use when in preview mode
+        :param source_filter:   Source filter or callable to use for regular indexing
+        :param preview_filter:  Source filter or callable to use when in preview mode
         :param trim:            Can be a single trim or a sequence of trims
-        :param idx:             Indexer for the input file. Pass a function that takes a string in and returns a vs.VideoNode
         """
         if isinstance(file, Sequence) and not isinstance(file, str) and len(file) == 1:
             file = file[0]
@@ -72,14 +67,12 @@ class src_file:
         self.source_filter = source_filter
         self.preview_filter = preview_filter
         self.trim = trim
-        self.idx = idx
-        self.idx_args = kwargs
 
-    def __call_indexer(self, fileIn: Path):
-        if self.idx:
-            return self.idx(str(fileIn.resolve()))
+    def __call_indexer(self, fileIn: Path) -> vs.VideoNode:
+        if callable(self.source_filter):
+            return self.source_filter(str(fileIn.resolve()))
         else:
-            return src(fileIn, self.source_filter, self.preview_filter, **self.idx_args)
+            return src(fileIn, self.source_filter, self.preview_filter)
 
     def __index_clip(self):
         if isinstance(self.file, list):
@@ -194,9 +187,8 @@ class src_file:
         entries: int | list[int] | Trim | None = None,
         angle: int = 0,
         trim: Trim | None = None,
-        source_filter: SourceFilter = SourceFilter.BESTSOURCE,
-        preview_filter: SourceFilter = SourceFilter.LSMASH,
-        idx: Callable[[str], vs.VideoNode] | None = None,
+        source_filter: SourceFilter | Callable[[str], vs.VideoNode] = SourceFilter.BESTSOURCE,
+        preview_filter: SourceFilter | Callable[[str], vs.VideoNode] = SourceFilter.LSMASH,
         **kwargs: KwargsT,
     ) -> "src_file":
         root_dir = ensure_path_exists(root_dir, "BDMV", True)
@@ -214,7 +206,7 @@ class src_file:
                     clips = clips[entries[0] :]
                 else:
                     clips = clips[entries[0] : entries[1]]
-        return src_file(clips, source_filter, preview_filter, trim, idx, **kwargs)
+        return src_file(clips, source_filter, preview_filter, trim)
 
 
 SRC_FILE = src_file
